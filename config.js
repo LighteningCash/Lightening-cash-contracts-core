@@ -72,7 +72,7 @@ module.exports = {
     netId42: {
       eth: {
         instanceAddress: {
-          '0.1': '0x8b3f5393bA08c24cc7ff5A66a832562aAB7bC95f',
+          '0.1': '0x079bF56E1eebCb6a852D61813f0C8B681e24CE96',
           '1': '0xD6a6AC46d02253c938B96D12BE439F570227aE8E',
           '10': '0xe1BE96331391E519471100c3c1528B66B8F4e5a7',
           '100': '0xd037E0Ac98Dab2fCb7E296c69C6e52767Ae5414D'

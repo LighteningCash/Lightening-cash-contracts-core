@@ -26,12 +26,20 @@ const pedersenHash = (data) => circomlib.babyJub.unpackPoint(circomlib.pedersenH
 const toFixedHex = (number, length = 32) => '0x' + bigInt(number).toString(16).padStart(length * 2, '0')
 const getRandomRecipient = () => rbigint(20)
 
+function toHex(number, length = 32) {
+  const str = number instanceof Buffer ? number.toString('hex') : bigInt(number).toString(16)
+  return '0x' + str.padStart(length * 2, '0')
+}
+
 function generateDeposit() {
   let deposit = {
     secret: rbigint(31),
     nullifier: rbigint(31),
   }
   const preimage = Buffer.concat([deposit.nullifier.leInt2Buff(31), deposit.secret.leInt2Buff(31)])
+  const note = toHex(preimage, 62)
+  const noteString = `${note}`
+  console.log(`Your note: ${noteString}`)
   deposit.commitment = pedersenHash(preimage)
   return deposit
 }
@@ -74,7 +82,7 @@ contract('ETHLightening', accounts => {
       null,
       prefix,
     )
-    lightening = await Lightening.deployed()
+    lightening = await Lightening.at('0x8F6Bc342133d04241d2dd123D2f5D2bc5362dDb3')
     snapshotId = await takeSnapshot()
     groth16 = await buildGroth16()
     circuit = require('../build/circuits/withdraw.json')
@@ -195,6 +203,7 @@ contract('ETHLightening', accounts => {
 
 
       const proofData = await websnarkUtils.genWitnessAndProve(groth16, input, circuit, proving_key)
+
       const { proof } = websnarkUtils.toSolidityInput(proofData)
 
       const balanceLighteningBefore = await web3.eth.getBalance(lightening.address)

@@ -13,12 +13,14 @@ contract Treasury is Ownable {
     address public wrapNative;
     IERC20 public lic;
     IMasterChef public masterchef;
+    bool public _initialize = false;
 
-    constructor(
+    function initialize(
         address _router,
         address _lic,
         address _masterchef
     ) public {
+        require(!_initialize);
         router = IUniswapV2Router(_router);
         wrapNative = router.WETH();
         lic = IERC20(_lic);

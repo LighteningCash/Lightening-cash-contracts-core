@@ -3,16 +3,10 @@
 pragma solidity 0.5.17;
 pragma experimental ABIEncoderV2;
 
-import "./ENS.sol";
-import "./OwnableMerkleTree.sol";
 import "./ILighteningTrees.sol";
-import "./IHasher.sol";
 
-contract LighteningTrees is ILighteningTrees, EnsResolve {
-    OwnableMerkleTree public depositTree;
-    OwnableMerkleTree public withdrawalTree;
-    IHasher public hasher;
-    address public tornadoProxy;
+contract LighteningTrees is ILighteningTrees {
+    address public lighteningProxy;
 
     bytes32[] public deposits;
     uint256 public lastProcessedDepositLeaf;
@@ -39,32 +33,18 @@ contract LighteningTrees is ILighteningTrees, EnsResolve {
         uint256 block;
     }
 
-    modifier onlyTornadoProxy {
-        require(msg.sender == tornadoProxy, "Not authorized");
+    modifier onlyLighteningProxy {
+        require(msg.sender == lighteningProxy, "Not authorized");
         _;
     }
 
-    constructor(
-        bytes32 _tornadoProxy,
-        bytes32 _hasher2,
-        bytes32 _hasher3,
-        uint32 _levels
-    ) public {
-        tornadoProxy = resolve(_tornadoProxy);
-        hasher = IHasher(resolve(_hasher3));
-        depositTree = new OwnableMerkleTree(
-            _levels,
-            IHasher(resolve(_hasher2))
-        );
-        withdrawalTree = new OwnableMerkleTree(
-            _levels,
-            IHasher(resolve(_hasher2))
-        );
+    constructor(address _lighteningProxy) public {
+        lighteningProxy = _lighteningProxy;
     }
 
     function registerDeposit(address _instance, bytes32 _commitment)
         external
-        onlyTornadoProxy
+        onlyLighteningProxy
     {
         deposits.push(
             keccak256(abi.encode(_instance, _commitment, blockNumber()))
@@ -73,112 +53,11 @@ contract LighteningTrees is ILighteningTrees, EnsResolve {
 
     function registerWithdrawal(address _instance, bytes32 _nullifier)
         external
-        onlyTornadoProxy
+        onlyLighteningProxy
     {
         withdrawals.push(
             keccak256(abi.encode(_instance, _nullifier, blockNumber()))
         );
-    }
-
-    function updateRoots(
-        TreeLeaf[] calldata _deposits,
-        TreeLeaf[] calldata _withdrawals
-    ) external {
-        if (_deposits.length > 0) updateDepositTree(_deposits);
-        if (_withdrawals.length > 0) updateWithdrawalTree(_withdrawals);
-    }
-
-    function updateDepositTree(TreeLeaf[] calldata _deposits) public {
-        bytes32[] memory leaves = new bytes32[](_deposits.length);
-        uint256 offset = lastProcessedDepositLeaf;
-
-        for (uint256 i = 0; i < _deposits.length; i++) {
-            TreeLeaf memory deposit = _deposits[i];
-            bytes32 leafHash = keccak256(
-                abi.encode(deposit.instance, deposit.hash, deposit.block)
-            );
-            require(deposits[offset + i] == leafHash, "Incorrect deposit");
-
-            leaves[i] = hasher.poseidon(
-                [
-                    bytes32(uint256(deposit.instance)),
-                    deposit.hash,
-                    bytes32(deposit.block)
-                ]
-            );
-            delete deposits[offset + i];
-
-            emit DepositData(
-                deposit.instance,
-                deposit.hash,
-                deposit.block,
-                offset + i
-            );
-        }
-
-        lastProcessedDepositLeaf = offset + _deposits.length;
-        depositTree.bulkInsert(leaves);
-    }
-
-    function updateWithdrawalTree(TreeLeaf[] calldata _withdrawals) public {
-        bytes32[] memory leaves = new bytes32[](_withdrawals.length);
-        uint256 offset = lastProcessedWithdrawalLeaf;
-
-        for (uint256 i = 0; i < _withdrawals.length; i++) {
-            TreeLeaf memory withdrawal = _withdrawals[i];
-            bytes32 leafHash = keccak256(
-                abi.encode(
-                    withdrawal.instance,
-                    withdrawal.hash,
-                    withdrawal.block
-                )
-            );
-            require(
-                withdrawals[offset + i] == leafHash,
-                "Incorrect withdrawal"
-            );
-
-            leaves[i] = hasher.poseidon(
-                [
-                    bytes32(uint256(withdrawal.instance)),
-                    withdrawal.hash,
-                    bytes32(withdrawal.block)
-                ]
-            );
-            delete withdrawals[offset + i];
-
-            emit WithdrawalData(
-                withdrawal.instance,
-                withdrawal.hash,
-                withdrawal.block,
-                offset + i
-            );
-        }
-
-        lastProcessedWithdrawalLeaf = offset + _withdrawals.length;
-        withdrawalTree.bulkInsert(leaves);
-    }
-
-    function validateRoots(bytes32 _depositRoot, bytes32 _withdrawalRoot)
-        public
-        view
-    {
-        require(
-            depositTree.isKnownRoot(_depositRoot),
-            "Incorrect deposit tree root"
-        );
-        require(
-            withdrawalTree.isKnownRoot(_withdrawalRoot),
-            "Incorrect withdrawal tree root"
-        );
-    }
-
-    function depositRoot() external view returns (bytes32) {
-        return depositTree.getLastRoot();
-    }
-
-    function withdrawalRoot() external view returns (bytes32) {
-        return withdrawalTree.getLastRoot();
     }
 
     function getRegisteredDeposits()
@@ -205,7 +84,7 @@ contract LighteningTrees is ILighteningTrees, EnsResolve {
         }
     }
 
-    function blockNumber() public virtual view returns (uint256) {
+    function blockNumber() public view returns (uint256) {
         return block.number;
     }
 }

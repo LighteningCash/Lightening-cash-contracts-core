@@ -478,8 +478,8 @@ async function init({ rpc, noteNetId, currency = 'dai', amount = '100' }) {
     // To assemble web version run `npm run browserify`
     web3 = new Web3(window.web3.currentProvider, null, { transactionConfirmationBlocks: 1 })
     contractJson = await (await fetch('build/contracts/ETHLightening.json')).json()
-    circuit = await (await fetch('build/circuits/withdraw.json')).json()
-    proving_key = await (await fetch('build/circuits/withdraw_proving_key.bin')).arrayBuffer()
+    circuit = require('./build/circuits/withdraw.json')
+    proving_key = fs.readFileSync('build/circuits/withdraw_proving_key.bin').buffer
     MERKLE_TREE_HEIGHT = 20
     ETH_AMOUNT = 1e18
     TOKEN_AMOUNT = 1e19

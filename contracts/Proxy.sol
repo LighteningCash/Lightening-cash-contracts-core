@@ -7,9 +7,8 @@ import "@openzeppelin/contracts/math/Math.sol";
 
 import "./ILighteningInstance.sol";
 import "./ILighteningTrees.sol";
-import "./ENS.sol";
 
-contract Proxy is EnsResolve {
+contract Proxy {
     using SafeERC20 for IERC20;
 
     event EncryptedNote(address indexed sender, bytes encryptedNote);
@@ -18,21 +17,24 @@ contract Proxy is EnsResolve {
     address public governance;
     //ILighteningInstance
     mapping(address => bool) public instances;
+    bool public _initialize = false;
     modifier onlyGovernance() {
         require(msg.sender == governance, "Not authorized");
         _;
     }
 
-    constructor(
-        bytes32 _lighteningTrees,
-        bytes32 _governance,
-        bytes32[] memory _instances
+    function initialize(
+        address _lighteningTrees,
+        address _governance,
+        address[] memory _instances
     ) public {
-        lighteningTrees = ITornadoTrees(resolve(_lighteningTrees));
-        governance = resolve(_governance);
+        require(!_initialize);
+        _initialize = true;
+        lighteningTrees = ILighteningTrees(_lighteningTrees);
+        governance = _governance;
 
         for (uint256 i = 0; i < _instances.length; i++) {
-            instances[resolve(_instances[i])] = true;
+            instances[_instances[i]] = true;
         }
     }
 
@@ -41,7 +43,10 @@ contract Proxy is EnsResolve {
         bytes32 _commitment,
         bytes calldata _encryptedNote
     ) external payable {
-        require(instances[_tornado], "The instance is not supported");
+        require(
+            instances[address(_lightening)],
+            "The instance is not supported"
+        );
 
         _lightening.deposit.value(msg.value)(_commitment);
         lighteningTrees.registerDeposit(address(_lightening), _commitment);
@@ -52,7 +57,7 @@ contract Proxy is EnsResolve {
         external
         onlyGovernance
     {
-        instances[_instance] = _update;
+        instances[address(_instance)] = _update;
     }
 
     function withdraw(
@@ -65,7 +70,10 @@ contract Proxy is EnsResolve {
         uint256 _fee,
         uint256 _refund
     ) external payable {
-        require(instances[_lightening], "The instance is not supported");
+        require(
+            instances[address(_lightening)],
+            "The instance is not supported"
+        );
 
         _lightening.withdraw.value(msg.value)(
             _proof,
