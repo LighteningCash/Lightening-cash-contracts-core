@@ -1,5 +1,5 @@
 pragma solidity 0.5.17;
-import "./pancake/IUniswapV2Router.sol";
+import "./pancake/IPancakeRouter.sol";
 import "@openzeppelin/contracts/ownership/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -8,7 +8,7 @@ interface IMasterChef {
 }
 
 contract Treasury is Ownable {
-    IUniswapV2Router public router;
+    IPancakeRouter public router;
     mapping(address => address[]) public path;
     address public wrapNative;
     IERC20 public lic;
@@ -21,10 +21,11 @@ contract Treasury is Ownable {
         address _masterchef
     ) public {
         require(!_initialize);
-        router = IUniswapV2Router(_router);
+        router = IPancakeRouter(_router);
         wrapNative = router.WETH();
         lic = IERC20(_lic);
         masterchef = IMasterChef(_masterchef);
+        _initialize = true;
     }
 
     function setSwapPath(address _token, address[] memory _path)
@@ -45,10 +46,11 @@ contract Treasury is Ownable {
                 block.timestamp + 100
             );
         } else {
-            router.swapExactTokensForETH(
+            IERC20(_token).approve(address(router), uint256(-1));
+            router.swapExactTokensForTokens(
                 IERC20(_token).balanceOf(address(this)),
                 0,
-                path[address(0)],
+                path[_token],
                 address(this),
                 block.timestamp + 100
             );
