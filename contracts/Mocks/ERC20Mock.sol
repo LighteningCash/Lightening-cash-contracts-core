@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20Mintable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
 
 contract ERC20Mock is ERC20Detailed, ERC20Mintable {
-  constructor() ERC20Detailed("DAIMock", "DAIM", 18) public {
+  constructor() ERC20Detailed("Mock", "MOCK", 18) public {
+    mint(msg.sender, 1000000e18);
   }
 }

@@ -32,16 +32,16 @@ contract Treasury is Ownable {
         public
         onlyOwner
     {
-        require(_path.length > 1 && _path[_path.length - 1] == address(lic));
+        require(_path.length > 1 && _path[_path.length - 1] == address(lic), "!failed");
         path[_token] = _path;
     }
 
     function buybackLIC(address _token) public onlyOwner {
         //buy LIC with all funds of the _token
-        if (_token == address(0)) {
+        if (_token == address(1) || _token == address(0)) {
             router.swapExactETHForTokens.value(address(this).balance)(
                 0,
-                path[address(0)],
+                path[_token],
                 address(this),
                 block.timestamp + 100
             );
