@@ -17,8 +17,8 @@ contract Lightening is MerkleTreeWithHistory, ReentrancyGuard {
     IVerifier public verifier;
     address payable public treasury;
 
-    uint256 public constant feeX10000 = 5;
-    uint256 public constant withdrawFeeX10000 = 10;
+    uint256 public feeX10000 = 5;
+    uint256 public withdrawFeeX10000 = 10;
 
     // operator can update snark verification key
     // after the final trusted setup ceremony operator rights are supposed to be transferred to zero address
@@ -162,5 +162,9 @@ contract Lightening is MerkleTreeWithHistory, ReentrancyGuard {
     /** @dev operator can change his address */
     function changeOperator(address _newOperator) external onlyOperator {
         operator = _newOperator;
+    }
+
+    function updateTreasury(address _treasury) external  onlyOperator {
+        treasury = _treasury;
     }
 }
