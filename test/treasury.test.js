@@ -21,7 +21,8 @@ contract('MasterChef', (allAccounts) => {
 		this.router = await IPancakeRouter.at("0x05fF2B0DB69458A0750badebc4f9e13aDd608C7F");
 		this.masterchef = await MockMasterChef.new();
 		this.treasury = await Treasury.new();
-		await this.treasury.initialize(this.router.address, this.lic.address, this.masterchef.address, {from: deployer})
+		await this.treasury.initialize(deployer, {from: deployer})
+		await this.treasury.setTokens(this.router.address, this.lic.address, this.masterchef.address, {from: deployer})
 
 		//add liquidity for lic-bnb
 		await this.lic.approve(this.router.address, new BN('1000000e18').toFixed(0), {from: deployer});
@@ -55,5 +56,11 @@ contract('MasterChef', (allAccounts) => {
 		await this.treasury.buybackLIC(this.token0.address, {from: deployer});
 		balAfter = (await this.lic.balanceOf(this.masterchef.address)).valueOf().toString();
 		assert.notEqual(balAfter, balBefore);
+
+		//rescue token
+		await this.token0.transfer(this.treasury.address, new BN('100e18').toFixed(0), {from: deployer});
+		assert.notEqual('0', (await this.token0.balanceOf(this.treasury.address)).valueOf().toString());
+		await this.treasury.rescueFunds(this.token0.address, {from: deployer});
+		assert.equal('0', (await this.token0.balanceOf(this.treasury.address)).valueOf().toString());
 	});
 })

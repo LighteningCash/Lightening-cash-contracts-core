@@ -164,7 +164,7 @@ contract Lightening is MerkleTreeWithHistory, ReentrancyGuard {
         operator = _newOperator;
     }
 
-    function updateTreasury(address _treasury) external  onlyOperator {
+    function updateTreasury(address payable _treasury) external  onlyOperator {
         treasury = _treasury;
     }
 }

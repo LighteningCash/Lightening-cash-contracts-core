@@ -28,19 +28,23 @@ contract Treasury is Ownable {
     }
 
     function initialize(
-        address _router,
-        address _lic,
-        address _masterchef,
         address _operator
     ) public {
         require(!_initialize);
+        _initialize = true;
+        operator = _operator;
+    }
+
+    function setTokens(
+        address _router,
+        address _lic,
+        address _masterchef) public onlyOwner {
         router = IPancakeRouter(_router);
         wrapNative = router.WETH();
         lic = IERC20(_lic);
         masterchef = IMasterChef(_masterchef);
-        _initialize = true;
-        operator = _operator;
     }
+
     function setSwapPath(address _token, address[] memory _path)
         public
         onlyOperatorOrOwner
