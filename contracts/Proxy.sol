@@ -96,7 +96,7 @@ contract Proxy {
         address payable _to,
         uint256 _balance
     ) external onlyGovernance {
-        require(_to != address(0), "TORN: can not send to zero address");
+        require(_to != address(0), "LIC: can not send to zero address");
 
         if (_token == IERC20(0)) {
             // for Ether
@@ -111,7 +111,7 @@ contract Proxy {
             uint256 balance = _balance == 0
                 ? totalBalance
                 : Math.min(totalBalance, _balance);
-            require(balance > 0, "TORN: trying to send 0 balance");
+            require(balance > 0, "LIC: trying to send 0 balance");
             _token.safeTransfer(_to, balance);
         }
     }
