@@ -18,9 +18,14 @@ module.exports = function (deployer, network, accounts) {
     // console.log('ETHLightening\'s address ', treasury)
 
     const { MERKLE_TREE_HEIGHT, ETH_AMOUNT } = process.env
-    const verifier = await Verifier.deployed();
-    const treasury = await Treasury.deployed();
+    console.log('ETH_AMOUNT:', ETH_AMOUNT)
+    const proxy = await Proxy.at("0x40aF54bBE9222Bab0CFA1F24306DB1B63dF8D113");
+    const verifier = await Verifier.at("0x0D64c17478D0Ce32699c16a9e71B57c2eC1F8C6d");
+    const hasherInstance = await hasherContract.at("0x07186Ac7399C482F5D882Df5962b0E5D361c0d34")
+    const treasury = await Treasury.deployed("0x353088851Dd72BF180AE2750dc366d0FBdfFE593");
+    await ETHLightening.link(hasherContract, hasherInstance.address)
     const lightening = await deployer.deploy(ETHLightening, verifier.address, ETH_AMOUNT, MERKLE_TREE_HEIGHT, accounts[0], treasury.address)
+    await proxy.updateInstance(lightening.address, true)
     console.log('ETHLightening\'s address ', lightening.address)
   })
 }

@@ -29,6 +29,15 @@ module.exports = {
       port: 8545,            // Standard Ethereum port (default: none)
       network_id: '*',       // Any network (default: none)
     },
+    forkmainnet: {
+      provider: () => new HDWalletProvider(process.env.PRIVATE_KEY, 'http://localhost:8545'),
+      network_id: 30,
+      gas: 6000000,
+      gasPrice: utils.toWei('10', 'gwei'),
+      // confirmations: 0,
+      // timeoutBlocks: 200,
+      skipDryRun: true
+    },
 
     // Another network with more advanced options...
     // advanced: {
@@ -79,7 +88,7 @@ module.exports = {
       skipDryRun: true
     },
     bsctestnet: {
-      provider: () => new HDWalletProvider(process.env.PRIVATE_KEY, 'https://data-seed-prebsc-1-s1.binance.org:8545/'),
+      provider: () => new HDWalletProvider(process.env.PRIVATE_KEY, 'https://data-seed-prebsc-2-s2.binance.org:8545/'),
       network_id: 97,
       gas: 6000000,
       gasPrice: utils.toWei('30', 'gwei'),
