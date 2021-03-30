@@ -8,7 +8,7 @@ const fs = require('fs')
 const { toBN, randomHex } = require('web3-utils')
 const { takeSnapshot, revertSnapshot } = require('../lib/ganacheHelper')
 
-const Lightening = artifacts.require('./ETHLightening.sol')
+const Lightening = artifacts.require('./ETHLighteningV2.sol')
 const { ETH_AMOUNT, MERKLE_TREE_HEIGHT } = process.env
 
 const websnarkUtils = require('websnark/src/utils')
@@ -31,6 +31,23 @@ function toHex(number, length = 32) {
   return '0x' + str.padStart(length * 2, '0')
 }
 
+const hexStringExample = "0x0001020304"
+function hexStringToBytes() {
+  return web3.utils.hexToBytes(hexStringExample)
+}
+function hashExtraData() {
+  return web3.utils.keccak256(hexStringToBytes())
+}
+//compute keccak256 of recipient, extra data, and message sender (proxy/trading contract if doing through proxy or privacy swap)
+//this is to avoid malleability attack as msg.sender and extra data is signed by the secret
+function keccak256Hash(recipient, sender) {
+  let extraHash = hashExtraData()
+  let toHex = toFixedHex(recipient, 20)
+  const encodedExtraData = web3.eth.abi.encodeParameters(['address','uint256','address'], [toHex, extraHash, sender])
+  const h = web3.utils.keccak256(encodedExtraData)
+  return h
+}
+
 function generateDeposit() {
   let deposit = {
     secret: rbigint(31),
@@ -39,7 +56,6 @@ function generateDeposit() {
   const preimage = Buffer.concat([deposit.nullifier.leInt2Buff(31), deposit.secret.leInt2Buff(31)])
   const note = toHex(preimage, 62)
   const noteString = `${note}`
-  console.log(`Your note: ${noteString}`)
   deposit.commitment = pedersenHash(preimage)
   return deposit
 }
@@ -183,14 +199,16 @@ contract('ETHLightening', accounts => {
       balanceUserAfter.should.be.eq.BN(toBN(balanceUserBefore).sub(toBN(value)).sub(depositFee))
 
       const { root, path_elements, path_index } = await tree.path(0)
-
+      //we compute hash based on recipient address, message sender (relayer in this case, could be proxy or privacy swap contract)
+      let keccakHash = keccak256Hash(recipient, relayer)
+      keccakHash = bigInt('0x' + keccakHash.substring(26))  //last 20 bytes as an address to compute proof
       // Circuit input
       const input = stringifyBigInts({
         // public
         root,
         nullifierHash: pedersenHash(deposit.nullifier.leInt2Buff(31)),
         relayer: operator,
-        recipient,
+        recipient: keccakHash,  //when computing proof, we use keccakHash as recipient so verification on mixer contracts can bypass, but when calling withdraw, actual recipient address should be called
         fee,
         refund,
 
@@ -215,14 +233,15 @@ contract('ETHLightening', accounts => {
 
       // Uncomment to measure gas usage
       // gas = await lightening.withdraw.estimateGas(proof, publicSignals, { from: relayer, gasPrice: '0' })
-      // console.log('withdraw gas:', gas)
       const args = [
         toFixedHex(input.root),
         toFixedHex(input.nullifierHash),
-        toFixedHex(input.recipient, 20),
+        [toFixedHex(recipient, 20), relayer],
         toFixedHex(input.relayer, 20),
         toFixedHex(input.fee),
-        toFixedHex(input.refund)
+        toFixedHex(input.refund),
+        hashExtraData(), //put hash of extra data (for trading), could be empty ('0') if withdraw simply 
+        keccakHash
       ]
       const { logs } = await lightening.withdraw(proof, ...args, { from: relayer, gasPrice: '0' })
 
@@ -252,13 +271,15 @@ contract('ETHLightening', accounts => {
       await lightening.deposit(toFixedHex(deposit.commitment), { value: toBN(value).mul(toBN(10005)).div(toBN(10000)).toString(10), from: sender })
 
       const { root, path_elements, path_index } = await tree.path(0)
+      let keccakHash = keccak256Hash(recipient, relayer)
+      keccakHash = bigInt('0x' + keccakHash.substring(26))  //last 20 bytes as an address to compute proof
 
       const input = stringifyBigInts({
         root,
         nullifierHash: pedersenHash(deposit.nullifier.leInt2Buff(31)),
         nullifier: deposit.nullifier,
         relayer: operator,
-        recipient,
+        recipient: keccakHash,
         fee,
         refund,
         secret: deposit.secret,
@@ -270,10 +291,12 @@ contract('ETHLightening', accounts => {
       const args = [
         toFixedHex(input.root),
         toFixedHex(input.nullifierHash),
-        toFixedHex(input.recipient, 20),
+        [toFixedHex(recipient, 20), relayer],
         toFixedHex(input.relayer, 20),
         toFixedHex(input.fee),
-        toFixedHex(input.refund)
+        toFixedHex(input.refund),
+        hashExtraData(), //put hash of extra data (for trading), could be empty ('0') if withdraw simply 
+        keccakHash
       ]
       await lightening.withdraw(proof, ...args, { from: relayer }).should.be.fulfilled
       const error = await lightening.withdraw(proof, ...args, { from: relayer }).should.be.rejected
@@ -286,13 +309,14 @@ contract('ETHLightening', accounts => {
       await lightening.deposit(toFixedHex(deposit.commitment), { value: toBN(value).mul(toBN(10005)).div(toBN(10000)).toString(10), from: sender })
 
       const { root, path_elements, path_index } = await tree.path(0)
-
+      let keccakHash = keccak256Hash(recipient, relayer)
+      keccakHash = bigInt('0x' + keccakHash.substring(26))  //last 20 bytes as an address to compute proof
       const input = stringifyBigInts({
         root,
         nullifierHash: pedersenHash(deposit.nullifier.leInt2Buff(31)),
         nullifier: deposit.nullifier,
         relayer: operator,
-        recipient,
+        recipient: keccakHash,
         fee,
         refund,
         secret: deposit.secret,
@@ -304,194 +328,198 @@ contract('ETHLightening', accounts => {
       const args = [
         toFixedHex(input.root),
         toFixedHex(toBN(input.nullifierHash).add(toBN('21888242871839275222246405745257275088548364400416034343698204186575808495617'))),
-        toFixedHex(input.recipient, 20),
+        [toFixedHex(recipient, 20), relayer],
         toFixedHex(input.relayer, 20),
         toFixedHex(input.fee),
-        toFixedHex(input.refund)
+        toFixedHex(input.refund),
+        hashExtraData(), //put hash of extra data (for trading), could be empty ('0') if withdraw simply 
+        keccakHash
       ]
       const error = await lightening.withdraw(proof, ...args, { from: relayer }).should.be.rejected
       error.reason.should.be.equal('verifier-gte-snark-scalar-field')
     })
 
-    it('fee should be less or equal transfer value', async () => {
-      const deposit = generateDeposit()
-      await tree.insert(deposit.commitment)
-      await lightening.deposit(toFixedHex(deposit.commitment), { value: toBN(value).mul(toBN(10005)).div(toBN(10000)).toString(10), from: sender })
+  //   it('fee should be less or equal transfer value', async () => {
+  //     const deposit = generateDeposit()
+  //     await tree.insert(deposit.commitment)
+  //     await lightening.deposit(toFixedHex(deposit.commitment), { value: toBN(value).mul(toBN(10005)).div(toBN(10000)).toString(10), from: sender })
+  //     let keccakHash = keccak256Hash(recipient, relayer)
+  //     keccakHash = bigInt('0x' + keccakHash.substring(26))  //last 20 bytes as an address to compute proof      const { root, path_elements, path_index } = await tree.path(0)
+  //     const { root, path_elements, path_index } = await tree.path(0)
+  //     const input = stringifyBigInts({
+  //       root,
+  //       nullifierHash: pedersenHash(deposit.nullifier.leInt2Buff(31)),
+  //       nullifier: deposit.nullifier,
+  //       relayer: operator,
+  //       recipient: keccakHash,
+  //       fee: largeFee,
+  //       refund,
+  //       secret: deposit.secret,
+  //       pathElements: path_elements,
+  //       pathIndices: path_index,
+  //     })
 
-      const { root, path_elements, path_index } = await tree.path(0)
-      const largeFee = bigInt(value).add(bigInt(1))
-      const input = stringifyBigInts({
-        root,
-        nullifierHash: pedersenHash(deposit.nullifier.leInt2Buff(31)),
-        nullifier: deposit.nullifier,
-        relayer: operator,
-        recipient,
-        fee: largeFee,
-        refund,
-        secret: deposit.secret,
-        pathElements: path_elements,
-        pathIndices: path_index,
-      })
+  //     const proofData = await websnarkUtils.genWitnessAndProve(groth16, input, circuit, proving_key)
+  //     const { proof } = websnarkUtils.toSolidityInput(proofData)
+  //     const args = [
+  //       toFixedHex(input.root),
+  //       toFixedHex(input.nullifierHash),
+  //       toFixedHex(recipient, 20),
+  //       toFixedHex(input.relayer, 20),
+  //       toFixedHex(input.fee),
+  //       toFixedHex(input.refund),
+  //       hashExtraData(), //put hash of extra data (for trading), could be empty ('0') if withdraw simply 
+  //       relayer
+  //     ]
+  //     const error = await lightening.withdraw(proof, ...args, { from: relayer }).should.be.rejected
+  //     error.reason.should.be.equal('Fee exceeds transfer value')
+  //   })
 
-      const proofData = await websnarkUtils.genWitnessAndProve(groth16, input, circuit, proving_key)
-      const { proof } = websnarkUtils.toSolidityInput(proofData)
-      const args = [
-        toFixedHex(input.root),
-        toFixedHex(input.nullifierHash),
-        toFixedHex(input.recipient, 20),
-        toFixedHex(input.relayer, 20),
-        toFixedHex(input.fee),
-        toFixedHex(input.refund)
-      ]
-      const error = await lightening.withdraw(proof, ...args, { from: relayer }).should.be.rejected
-      error.reason.should.be.equal('Fee exceeds transfer value')
-    })
+  //   it('should throw for corrupted merkle tree root', async () => {
+  //     const deposit = generateDeposit()
+  //     await tree.insert(deposit.commitment)
+  //     await lightening.deposit(toFixedHex(deposit.commitment), { value: toBN(value).mul(toBN(10005)).div(toBN(10000)).toString(10), from: sender })
 
-    it('should throw for corrupted merkle tree root', async () => {
-      const deposit = generateDeposit()
-      await tree.insert(deposit.commitment)
-      await lightening.deposit(toFixedHex(deposit.commitment), { value: toBN(value).mul(toBN(10005)).div(toBN(10000)).toString(10), from: sender })
+  //     const { root, path_elements, path_index } = await tree.path(0)
 
-      const { root, path_elements, path_index } = await tree.path(0)
+  //     const input = stringifyBigInts({
+  //       nullifierHash: pedersenHash(deposit.nullifier.leInt2Buff(31)),
+  //       root,
+  //       nullifier: deposit.nullifier,
+  //       relayer: operator,
+  //       recipient,
+  //       fee,
+  //       refund,
+  //       secret: deposit.secret,
+  //       pathElements: path_elements,
+  //       pathIndices: path_index,
+  //     })
 
-      const input = stringifyBigInts({
-        nullifierHash: pedersenHash(deposit.nullifier.leInt2Buff(31)),
-        root,
-        nullifier: deposit.nullifier,
-        relayer: operator,
-        recipient,
-        fee,
-        refund,
-        secret: deposit.secret,
-        pathElements: path_elements,
-        pathIndices: path_index,
-      })
+  //     const proofData = await websnarkUtils.genWitnessAndProve(groth16, input, circuit, proving_key)
+  //     const { proof } = websnarkUtils.toSolidityInput(proofData)
 
-      const proofData = await websnarkUtils.genWitnessAndProve(groth16, input, circuit, proving_key)
-      const { proof } = websnarkUtils.toSolidityInput(proofData)
+  //     const args = [
+  //       toFixedHex(randomHex(32)),
+  //       toFixedHex(input.nullifierHash),
+  //       toFixedHex(input.recipient, 20),
+  //       toFixedHex(input.relayer, 20),
+  //       toFixedHex(input.fee),
+  //       toFixedHex(input.refund)
+  //     ]
+  //     const error = await lightening.withdraw(proof, ...args, { from: relayer }).should.be.rejected
+  //     error.reason.should.be.equal('Cannot find your merkle root')
+  //   })
 
-      const args = [
-        toFixedHex(randomHex(32)),
-        toFixedHex(input.nullifierHash),
-        toFixedHex(input.recipient, 20),
-        toFixedHex(input.relayer, 20),
-        toFixedHex(input.fee),
-        toFixedHex(input.refund)
-      ]
-      const error = await lightening.withdraw(proof, ...args, { from: relayer }).should.be.rejected
-      error.reason.should.be.equal('Cannot find your merkle root')
-    })
+  //   it('should reject with tampered public inputs', async () => {
+  //     const deposit = generateDeposit()
+  //     await tree.insert(deposit.commitment)
+  //     await lightening.deposit(toFixedHex(deposit.commitment), { value: toBN(value).mul(toBN(10005)).div(toBN(10000)).toString(10), from: sender })
 
-    it('should reject with tampered public inputs', async () => {
-      const deposit = generateDeposit()
-      await tree.insert(deposit.commitment)
-      await lightening.deposit(toFixedHex(deposit.commitment), { value: toBN(value).mul(toBN(10005)).div(toBN(10000)).toString(10), from: sender })
+  //     let { root, path_elements, path_index } = await tree.path(0)
 
-      let { root, path_elements, path_index } = await tree.path(0)
+  //     const input = stringifyBigInts({
+  //       root,
+  //       nullifierHash: pedersenHash(deposit.nullifier.leInt2Buff(31)),
+  //       nullifier: deposit.nullifier,
+  //       relayer: operator,
+  //       recipient,
+  //       fee,
+  //       refund,
+  //       secret: deposit.secret,
+  //       pathElements: path_elements,
+  //       pathIndices: path_index,
+  //     })
+  //     const proofData = await websnarkUtils.genWitnessAndProve(groth16, input, circuit, proving_key)
+  //     let { proof } = websnarkUtils.toSolidityInput(proofData)
+  //     const args = [
+  //       toFixedHex(input.root),
+  //       toFixedHex(input.nullifierHash),
+  //       toFixedHex(input.recipient, 20),
+  //       toFixedHex(input.relayer, 20),
+  //       toFixedHex(input.fee),
+  //       toFixedHex(input.refund)
+  //     ]
+  //     let incorrectArgs
+  //     const originalProof = proof.slice()
 
-      const input = stringifyBigInts({
-        root,
-        nullifierHash: pedersenHash(deposit.nullifier.leInt2Buff(31)),
-        nullifier: deposit.nullifier,
-        relayer: operator,
-        recipient,
-        fee,
-        refund,
-        secret: deposit.secret,
-        pathElements: path_elements,
-        pathIndices: path_index,
-      })
-      const proofData = await websnarkUtils.genWitnessAndProve(groth16, input, circuit, proving_key)
-      let { proof } = websnarkUtils.toSolidityInput(proofData)
-      const args = [
-        toFixedHex(input.root),
-        toFixedHex(input.nullifierHash),
-        toFixedHex(input.recipient, 20),
-        toFixedHex(input.relayer, 20),
-        toFixedHex(input.fee),
-        toFixedHex(input.refund)
-      ]
-      let incorrectArgs
-      const originalProof = proof.slice()
+  //     // recipient
+  //     incorrectArgs = [
+  //       toFixedHex(input.root),
+  //       toFixedHex(input.nullifierHash),
+  //       toFixedHex('0x0000000000000000000000007a1f9131357404ef86d7c38dbffed2da70321337', 20),
+  //       toFixedHex(input.relayer, 20),
+  //       toFixedHex(input.fee),
+  //       toFixedHex(input.refund)
+  //     ]
+  //     let error = await lightening.withdraw(proof, ...incorrectArgs, { from: relayer }).should.be.rejected
+  //     error.reason.should.be.equal('Invalid withdraw proof')
 
-      // recipient
-      incorrectArgs = [
-        toFixedHex(input.root),
-        toFixedHex(input.nullifierHash),
-        toFixedHex('0x0000000000000000000000007a1f9131357404ef86d7c38dbffed2da70321337', 20),
-        toFixedHex(input.relayer, 20),
-        toFixedHex(input.fee),
-        toFixedHex(input.refund)
-      ]
-      let error = await lightening.withdraw(proof, ...incorrectArgs, { from: relayer }).should.be.rejected
-      error.reason.should.be.equal('Invalid withdraw proof')
+  //     // fee
+  //     incorrectArgs = [
+  //       toFixedHex(input.root),
+  //       toFixedHex(input.nullifierHash),
+  //       toFixedHex(input.recipient, 20),
+  //       toFixedHex(input.relayer, 20),
+  //       toFixedHex('0x000000000000000000000000000000000000000000000000015345785d8a0000'),
+  //       toFixedHex(input.refund)
+  //     ]
+  //     error = await lightening.withdraw(proof, ...incorrectArgs, { from: relayer }).should.be.rejected
+  //     error.reason.should.be.equal('Invalid withdraw proof')
 
-      // fee
-      incorrectArgs = [
-        toFixedHex(input.root),
-        toFixedHex(input.nullifierHash),
-        toFixedHex(input.recipient, 20),
-        toFixedHex(input.relayer, 20),
-        toFixedHex('0x000000000000000000000000000000000000000000000000015345785d8a0000'),
-        toFixedHex(input.refund)
-      ]
-      error = await lightening.withdraw(proof, ...incorrectArgs, { from: relayer }).should.be.rejected
-      error.reason.should.be.equal('Invalid withdraw proof')
+  //     // nullifier
+  //     incorrectArgs = [
+  //       toFixedHex(input.root),
+  //       toFixedHex('0x00abdfc78211f8807b9c6504a6e537e71b8788b2f529a95f1399ce124a8642ad'),
+  //       toFixedHex(input.recipient, 20),
+  //       toFixedHex(input.relayer, 20),
+  //       toFixedHex(input.fee),
+  //       toFixedHex(input.refund)
+  //     ]
+  //     error = await lightening.withdraw(proof, ...incorrectArgs, { from: relayer }).should.be.rejected
+  //     error.reason.should.be.equal('Invalid withdraw proof')
 
-      // nullifier
-      incorrectArgs = [
-        toFixedHex(input.root),
-        toFixedHex('0x00abdfc78211f8807b9c6504a6e537e71b8788b2f529a95f1399ce124a8642ad'),
-        toFixedHex(input.recipient, 20),
-        toFixedHex(input.relayer, 20),
-        toFixedHex(input.fee),
-        toFixedHex(input.refund)
-      ]
-      error = await lightening.withdraw(proof, ...incorrectArgs, { from: relayer }).should.be.rejected
-      error.reason.should.be.equal('Invalid withdraw proof')
+  //     // proof itself
+  //     proof = '0xbeef' + proof.substr(6)
+  //     await lightening.withdraw(proof, ...args, { from: relayer }).should.be.rejected
 
-      // proof itself
-      proof = '0xbeef' + proof.substr(6)
-      await lightening.withdraw(proof, ...args, { from: relayer }).should.be.rejected
+  //     // should work with original values
+  //     await lightening.withdraw(originalProof, ...args, { from: relayer }).should.be.fulfilled
+  //   })
 
-      // should work with original values
-      await lightening.withdraw(originalProof, ...args, { from: relayer }).should.be.fulfilled
-    })
+  //   it('should reject with non zero refund', async () => {
+  //     const deposit = generateDeposit()
+  //     await tree.insert(deposit.commitment)
+  //     await lightening.deposit(toFixedHex(deposit.commitment), { value: toBN(value).mul(toBN(10005)).div(toBN(10000)).toString(10), from: sender })
 
-    it('should reject with non zero refund', async () => {
-      const deposit = generateDeposit()
-      await tree.insert(deposit.commitment)
-      await lightening.deposit(toFixedHex(deposit.commitment), { value: toBN(value).mul(toBN(10005)).div(toBN(10000)).toString(10), from: sender })
+  //     const { root, path_elements, path_index } = await tree.path(0)
 
-      const { root, path_elements, path_index } = await tree.path(0)
+  //     const input = stringifyBigInts({
+  //       nullifierHash: pedersenHash(deposit.nullifier.leInt2Buff(31)),
+  //       root,
+  //       nullifier: deposit.nullifier,
+  //       relayer: operator,
+  //       recipient,
+  //       fee,
+  //       refund: bigInt(1),
+  //       secret: deposit.secret,
+  //       pathElements: path_elements,
+  //       pathIndices: path_index,
+  //     })
 
-      const input = stringifyBigInts({
-        nullifierHash: pedersenHash(deposit.nullifier.leInt2Buff(31)),
-        root,
-        nullifier: deposit.nullifier,
-        relayer: operator,
-        recipient,
-        fee,
-        refund: bigInt(1),
-        secret: deposit.secret,
-        pathElements: path_elements,
-        pathIndices: path_index,
-      })
+  //     const proofData = await websnarkUtils.genWitnessAndProve(groth16, input, circuit, proving_key)
+  //     const { proof } = websnarkUtils.toSolidityInput(proofData)
 
-      const proofData = await websnarkUtils.genWitnessAndProve(groth16, input, circuit, proving_key)
-      const { proof } = websnarkUtils.toSolidityInput(proofData)
-
-      const args = [
-        toFixedHex(input.root),
-        toFixedHex(input.nullifierHash),
-        toFixedHex(input.recipient, 20),
-        toFixedHex(input.relayer, 20),
-        toFixedHex(input.fee),
-        toFixedHex(input.refund)
-      ]
-      const error = await lightening.withdraw(proof, ...args, { from: relayer }).should.be.rejected
-      error.reason.should.be.equal('Refund value is supposed to be zero for ETH instance')
-    })
+  //     const args = [
+  //       toFixedHex(input.root),
+  //       toFixedHex(input.nullifierHash),
+  //       toFixedHex(input.recipient, 20),
+  //       toFixedHex(input.relayer, 20),
+  //       toFixedHex(input.fee),
+  //       toFixedHex(input.refund)
+  //     ]
+  //     const error = await lightening.withdraw(proof, ...args, { from: relayer }).should.be.rejected
+  //     error.reason.should.be.equal('Refund value is supposed to be zero for ETH instance')
+  //   })
   })
 
   describe('#changeOperator', () => {
@@ -550,14 +578,15 @@ contract('ETHLightening', accounts => {
       await lightening.deposit(toFixedHex(deposit2.commitment), { value: toBN(value).mul(toBN(10005)).div(toBN(10000)).toString(10), gasPrice: '0' })
 
       const { root, path_elements, path_index } = await tree.path(1)
-
+      let keccakHash = keccak256Hash(recipient, relayer)
+      keccakHash = bigInt('0x' + keccakHash.substring(26))  //last 20 bytes as an address to compute proof
       // Circuit input
       const input = stringifyBigInts({
         // public
         root,
         nullifierHash: pedersenHash(deposit2.nullifier.leInt2Buff(31)),
         relayer: operator,
-        recipient,
+        recipient: keccakHash,
         fee,
         refund,
 
@@ -575,10 +604,12 @@ contract('ETHLightening', accounts => {
       const args = [
         toFixedHex(input.root),
         toFixedHex(input.nullifierHash),
-        toFixedHex(input.recipient, 20),
+        [toFixedHex(recipient, 20), relayer],
         toFixedHex(input.relayer, 20),
         toFixedHex(input.fee),
-        toFixedHex(input.refund)
+        toFixedHex(input.refund),
+        hashExtraData(), //put hash of extra data (for trading), could be empty ('0') if withdraw simply 
+        keccakHash
       ]
 
       await lightening.withdraw(proof, ...args, { from: relayer, gasPrice: '0' })

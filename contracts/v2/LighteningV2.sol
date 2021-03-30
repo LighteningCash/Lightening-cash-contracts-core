@@ -1,11 +1,11 @@
 pragma solidity 0.5.17;
 
-import "./MerkleTreeWithHistory.sol";
-import "./IVerifier.sol";
+import "../MerkleTreeWithHistory.sol";
+import "../IVerifier.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 
-contract Lightening is MerkleTreeWithHistory, ReentrancyGuard {
+contract LighteningV2 is MerkleTreeWithHistory, ReentrancyGuard {
     uint256 public denomination;
     mapping(bytes32 => bool) public nullifierHashes;
     // we store all commitments just to prevent accidental deposits with the same commitment
@@ -89,24 +89,29 @@ contract Lightening is MerkleTreeWithHistory, ReentrancyGuard {
         bytes calldata _proof,
         bytes32 _root,
         bytes32 _nullifierHash,
-        address payable _recipient,
+        address payable[2] calldata _recipientAndSender,
         address payable _relayer,
         uint256 _fee,
-        uint256 _refund
+        uint256 _refund,
+        uint256 _extraInfoHash,
+        uint256 _recipientForProof
     ) external payable nonReentrant {
         require(_fee <= denomination, "Fee exceeds transfer value");
+        require(msg.sender == _recipientAndSender[1], "!Invalid sender");
         require(
             !nullifierHashes[_nullifierHash],
             "The note has been already spent"
         );
         require(isKnownRoot(_root), "Cannot find your merkle root"); // Make sure to use a recent one
+        bytes32 h = keccak256(abi.encode(_recipientAndSender[0], _extraInfoHash, _recipientAndSender[1]));
+        require(_recipientForProof == uint256(address(uint160(uint256(h)))), "invalid proof hash");
         require(
             verifier.verifyProof(
                 _proof,
                 [
                     uint256(_root),
                     uint256(_nullifierHash),
-                    uint256(_recipient),
+                    _recipientForProof,
                     uint256(_relayer),
                     _fee,
                     _refund
@@ -116,8 +121,18 @@ contract Lightening is MerkleTreeWithHistory, ReentrancyGuard {
         );
 
         nullifierHashes[_nullifierHash] = true;
-        _processWithdraw(_recipient, _relayer, _fee, _refund);
-        emit Withdrawal(_recipient, _nullifierHash, _relayer, _fee);
+        _processWithdraw(_recipientAndSender[0], _relayer, _fee, _refund);
+        emit Withdrawal(_recipientAndSender[0], _nullifierHash, _relayer, _fee);
+    }
+
+    function computeRecipient(address _recipient, uint256 _extraInfoHash, address _sender) external view returns (uint256) {
+        //return uint256(address(uint160(uint256(h))));
+        return uint256(address(uint160(uint256(keccak256(abi.encode(_recipient, _extraInfoHash, _sender))))));
+    }
+
+    function computeEncodePacked(address _recipient, uint256 _extraInfoHash, address _sender) external view returns (bytes memory) {
+        //return uint256(address(uint160(uint256(h))));
+        return abi.encode(_recipient, _extraInfoHash, _sender);
     }
 
     /** @dev this function is defined in a child contract */

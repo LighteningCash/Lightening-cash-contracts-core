@@ -1,6 +1,6 @@
 /* global artifacts */
 require('dotenv').config({ path: '../.env' })
-const ETHLightening = artifacts.require('ETHLightening')
+const ETHLightening = artifacts.require('ETHLighteningV2')
 const Proxy = artifacts.require('Proxy')
 const Verifier = artifacts.require('Verifier')
 const Treasury = artifacts.require('Treasury')
