@@ -93,8 +93,7 @@ contract LighteningV2 is MerkleTreeWithHistory, ReentrancyGuard {
         address payable _relayer,
         uint256 _fee,
         uint256 _refund,
-        uint256 _extraInfoHash,
-        uint256 _recipientForProof
+        uint256 _extraInfoHash
     ) external payable nonReentrant {
         require(_fee <= denomination, "Fee exceeds transfer value");
         require(msg.sender == _recipientAndSender[1], "!Invalid sender");
@@ -104,14 +103,13 @@ contract LighteningV2 is MerkleTreeWithHistory, ReentrancyGuard {
         );
         require(isKnownRoot(_root), "Cannot find your merkle root"); // Make sure to use a recent one
         bytes32 h = keccak256(abi.encode(_recipientAndSender[0], _extraInfoHash, _recipientAndSender[1]));
-        require(_recipientForProof == uint256(address(uint160(uint256(h)))), "invalid proof hash");
         require(
             verifier.verifyProof(
                 _proof,
                 [
                     uint256(_root),
                     uint256(_nullifierHash),
-                    _recipientForProof,
+                    uint256(address(uint160(uint256(h)))),
                     uint256(_relayer),
                     _fee,
                     _refund
@@ -123,16 +121,6 @@ contract LighteningV2 is MerkleTreeWithHistory, ReentrancyGuard {
         nullifierHashes[_nullifierHash] = true;
         _processWithdraw(_recipientAndSender[0], _relayer, _fee, _refund);
         emit Withdrawal(_recipientAndSender[0], _nullifierHash, _relayer, _fee);
-    }
-
-    function computeRecipient(address _recipient, uint256 _extraInfoHash, address _sender) external view returns (uint256) {
-        //return uint256(address(uint160(uint256(h))));
-        return uint256(address(uint160(uint256(keccak256(abi.encode(_recipient, _extraInfoHash, _sender))))));
-    }
-
-    function computeEncodePacked(address _recipient, uint256 _extraInfoHash, address _sender) external view returns (bytes memory) {
-        //return uint256(address(uint160(uint256(h))));
-        return abi.encode(_recipient, _extraInfoHash, _sender);
     }
 
     /** @dev this function is defined in a child contract */

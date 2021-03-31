@@ -69,8 +69,7 @@ contract ProxyV2 {
         address payable _relayer,
         uint256 _fee,
         uint256 _refund,
-        uint256 _extraHash,
-        uint256 _recipientForProof
+        uint256 _extraHash
     ) external payable {
         require(
             instances[address(_lightening)],
@@ -86,8 +85,7 @@ contract ProxyV2 {
             _relayer,
             _fee,
             _refund,
-            _extraHash,
-            _recipientForProof
+            _extraHash
         );
         lighteningTrees.registerWithdrawal(
             address(_lightening),
@@ -105,7 +103,6 @@ contract ProxyV2 {
         uint256 _fee,
         uint256 _refund,
         uint256 _extraHash,
-        uint256 _recipientForProof,
         address[] calldata path,
         address router
     ) external payable {
@@ -124,8 +121,7 @@ contract ProxyV2 {
             _relayer,
             _fee,
             _refund,
-            _extraHash,
-            _recipientForProof
+            _extraHash
         );
         lighteningTrees.registerWithdrawal(
             address(_lightening),

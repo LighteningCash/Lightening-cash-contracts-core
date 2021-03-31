@@ -11,7 +11,6 @@ interface ILighteningInstanceV2 {
         address payable relayer,
         uint256 fee,
         uint256 refund,
-        uint256 extraHash,
-        uint256 _recipientForProof
+        uint256 extraHash
     ) external payable;
 }
