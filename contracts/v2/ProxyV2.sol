@@ -76,6 +76,7 @@ contract ProxyV2 {
             "The instance is not supported"
         );
         require(_recipientAndSender[1] == address(this), "!sender to the mixers must be contract itself");
+        require(_extraHash == uint256(0x99c3867a6b3606383303ed491e92e68582bbf1849fb98489feccb706fb85b271), "!extra hash must be hash of LIC-WITHDRAW when withdraw from proxy");
 
         _lightening.withdraw.value(msg.value)(
             _proof,
@@ -112,6 +113,8 @@ contract ProxyV2 {
         );
         require(_recipientAndSender[1] == address(this), "!sender to the mixers must be contract itself");
         require(_recipientAndSender[0] == address(this), "!recipient must be contract itself for trading");
+        bytes32 expectedExtraDataHash = keccak256(abi.encode(path, router));
+        require(uint256(expectedExtraDataHash) == _extraHash, "!invalid data hash");
 
         _lightening.withdraw.value(msg.value)(
             _proof,
