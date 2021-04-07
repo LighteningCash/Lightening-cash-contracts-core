@@ -8,6 +8,8 @@ import "@openzeppelin/contracts/math/Math.sol";
 import "./ILighteningInstanceV2.sol";
 import "../ILighteningTrees.sol";
 
+import "./IBakerySwapRouter.sol";
+
 contract ProxyV2 {
     using SafeERC20 for IERC20;
 
@@ -132,6 +134,53 @@ contract ProxyV2 {
         );
 
         //swap with path and router
+        
+    }
+
+    function privacySwapWithBakery(
+        ILighteningInstanceV2 _lightening,
+        bytes calldata _proof,
+        bytes32 _root,
+        bytes32 _nullifierHash,
+        address payable[2] calldata _recipientAndSender,
+        address payable _relayer,
+        uint256 _fee,
+        uint256 _refund,
+        uint256 _extraHash,
+        address[] calldata path,
+        address router
+    ) external payable {
+        require(
+            instances[address(_lightening)],
+            "The instance is not supported"
+        );
+        require(_recipientAndSender[1] == address(this), "!sender to the mixers must be contract itself");
+        require(_recipientAndSender[0] == address(this), "!recipient must be contract itself for trading");
+        bytes32 expectedExtraDataHash = keccak256(abi.encode(path, router));
+        require(uint256(expectedExtraDataHash) == _extraHash, "!invalid data hash");
+
+        _lightening.withdraw.value(msg.value)(
+            _proof,
+            _root,
+            _nullifierHash,
+            _recipientAndSender,
+            _relayer,
+            _fee,
+            _refund,
+            _extraHash
+        );
+        lighteningTrees.registerWithdrawal(
+            address(_lightening),
+            _nullifierHash
+        );
+
+        //swap with path and router
+        IBakerySwapRouter bakeryRouter = IBakerySwapRouter(router);
+        address[] memory swapPath = new address[](path.length - 1);
+        for(uint256 i = 0; i < swapPath.length; i++) {
+            swapPath[i] = path[i];
+        }
+        bakeryRouter.swapExactBNBForTokens.value(address(this).balance)(0, swapPath, path[swapPath.length], block.timestamp + 100);
     }
 
     /// @dev Method to claim junk and accidentally sent tokens
@@ -159,4 +208,6 @@ contract ProxyV2 {
             _token.safeTransfer(_to, balance);
         }
     }
+
+    function() external payable {}
 }
