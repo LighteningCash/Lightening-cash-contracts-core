@@ -96,6 +96,15 @@ module.exports = {
       // timeoutBlocks: 200,
       skipDryRun: true
     },
+    moonbeamtestnet: {
+      provider: () => new HDWalletProvider(process.env.PRIVATE_KEY, 'https://rpc.testnet.moonbeam.network/'),
+      network_id: 1287,
+      gas: 6000000,
+      gasPrice: utils.toWei('1', 'gwei'),
+      // confirmations: 0,
+      // timeoutBlocks: 200,
+      skipDryRun: true
+    }
 
     // Useful for private networks
     // private: {
