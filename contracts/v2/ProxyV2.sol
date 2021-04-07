@@ -9,6 +9,7 @@ import "./ILighteningInstanceV2.sol";
 import "../ILighteningTrees.sol";
 
 import "./IBakerySwapRouter.sol";
+import "../pancake/IPancakeRouter.sol";
 
 contract ProxyV2 {
     using SafeERC20 for IERC20;
@@ -134,7 +135,13 @@ contract ProxyV2 {
         );
 
         //swap with path and router
-        
+        //swap with path and router
+        IPancakeRouter pcRouter = IPancakeRouter(router);
+        address[] memory swapPath = new address[](path.length - 1);
+        for(uint256 i = 0; i < swapPath.length; i++) {
+            swapPath[i] = path[i];
+        }
+        pcRouter.swapExactETHForTokens.value(address(this).balance)(0, swapPath, path[swapPath.length], block.timestamp + 100);
     }
 
     function privacySwapWithBakery(
