@@ -1,6 +1,7 @@
 require('dotenv').config()
 const HDWalletProvider = require('@truffle/hdwallet-provider')
 const utils = require('web3-utils')
+var PrivateKeyProvider = require("truffle-privatekey-provider");
 // const infuraKey = "fj4jll3k.....";
 //
 // const fs = require('fs');
@@ -97,10 +98,10 @@ module.exports = {
       skipDryRun: true
     },
     moonbeamtestnet: {
-      provider: () => new HDWalletProvider(process.env.PRIVATE_KEY, 'https://rpc.testnet.moonbeam.network/'),
+      provider: () => new PrivateKeyProvider(process.env.PRIVATE_KEY, 'https://rpc.testnet.moonbeam.network/'),
       network_id: 1287,
       gas: 6000000,
-      gasPrice: utils.toWei('1', 'gwei'),
+      gasPrice: utils.toWei('0', 'gwei'),
       // confirmations: 0,
       // timeoutBlocks: 200,
       skipDryRun: true
@@ -129,7 +130,7 @@ module.exports = {
           enabled: true,
           runs: 200
         },
-        // evmVersion: "byzantium"
+        evmVersion: "byzantium"
       }
     },
     external: {

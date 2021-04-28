@@ -1,16 +1,12 @@
 pragma solidity 0.5.17;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 
 import "./ILighteningInstance.sol";
 import "./ILighteningTrees.sol";
 
 contract Proxy {
-    using SafeERC20 for IERC20;
-
     event EncryptedNote(address indexed sender, bytes encryptedNote);
 
     ILighteningTrees public lighteningTrees;
@@ -90,6 +86,27 @@ contract Proxy {
         );
     }
 
+    function _safeErc20Transfer(address _tokenAddress, address _to, uint256 _amount) internal {
+        (bool success, bytes memory data) = _tokenAddress.call(
+            abi.encodeWithSelector(
+                0xa9059cbb, /* transfer */
+                _to,
+                _amount
+            )
+        );
+        require(success, "not enough tokens");
+
+        // if contract returns some data lets make sure that is `true` according to standard
+        if (data.length > 0) {
+            require(
+                data.length == 32,
+                "data length should be either 0 or 32 bytes"
+            );
+            success = abi.decode(data, (bool));
+            require(success, "not enough tokens. Token returns false.");
+        }
+    }
+
     /// @dev Method to claim junk and accidentally sent tokens
     function rescueTokens(
         IERC20 _token,
@@ -112,7 +129,7 @@ contract Proxy {
                 ? totalBalance
                 : Math.min(totalBalance, _balance);
             require(balance > 0, "LIC: trying to send 0 balance");
-            _token.safeTransfer(_to, balance);
+            _safeErc20Transfer(address(_token), _to, balance);
         }
     }
 }
