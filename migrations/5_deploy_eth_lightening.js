@@ -19,21 +19,32 @@ module.exports = function (deployer, network, accounts) {
 
     // const { MERKLE_TREE_HEIGHT, ETH_AMOUNT } = process.env
     // console.log('ETH_AMOUNT:', ETH_AMOUNT)
-    // const proxy = await Proxy.at("0x40aF54bBE9222Bab0CFA1F24306DB1B63dF8D113");
-    // const verifier = await Verifier.at("0x0D64c17478D0Ce32699c16a9e71B57c2eC1F8C6d");
-    // const hasherInstance = await hasherContract.at("0x07186Ac7399C482F5D882Df5962b0E5D361c0d34")
-    // const treasury = await Treasury.deployed("0x353088851Dd72BF180AE2750dc366d0FBdfFE593");
+    // const proxy = await Proxy.at("0xd72d7D3D96510d54815414dB39694B59a1748a19");
+    // const verifier = await Verifier.at("0xbC8a6030152baF11f62c11Ed28b3d5A13DC5DeD9");
+    // const hasherInstance = await hasherContract.at("0x8638EbB0EDbF49239fbdb73C20B2F5abf5F9f9e2")
+    // const treasury = await Treasury.deployed("0x51dfeBE8790AEDE8DFB8bab781E45378cB884b56");
     // await ETHLightening.link(hasherContract, hasherInstance.address)
     // const lightening = await deployer.deploy(ETHLightening, verifier.address, ETH_AMOUNT, MERKLE_TREE_HEIGHT, accounts[0], treasury.address)
     // await proxy.updateInstance(lightening.address, true)
     // console.log('ETHLightening\'s address ', lightening.address)
 
     const { MERKLE_TREE_HEIGHT, ETH_AMOUNT } = process.env
-    const verifier = await Verifier.deployed()
-    const treasury = await Treasury.deployed()
-    const hasherInstance = await hasherContract.deployed()
+    console.log('ETH_AMOUNT:', ETH_AMOUNT)
+    const proxy = await Proxy.at("0x78BA2BDE40A4cE7d266cc55866ADd7897f2508e1");
+    const verifier = await Verifier.at("0xA6F72f8968022A3F22E030131ED1A87412d83B1C");
+    const hasherInstance = await hasherContract.at("0x39Aa42587C46B62a5b8bEa3228184A305cc23833")
+    const treasury = await Treasury.deployed("0x006ef5FC1C4A2dB47a68a5264861f1b0525486c0");
     await ETHLightening.link(hasherContract, hasherInstance.address)
     const lightening = await deployer.deploy(ETHLightening, verifier.address, ETH_AMOUNT, MERKLE_TREE_HEIGHT, accounts[0], treasury.address)
+    await proxy.updateInstance(lightening.address, true)
     console.log('ETHLightening\'s address ', lightening.address)
+
+    // const { MERKLE_TREE_HEIGHT, ETH_AMOUNT } = process.env
+    // const verifier = await Verifier.deployed()
+    // const treasury = await Treasury.deployed()
+    // const hasherInstance = await hasherContract.deployed()
+    // await ETHLightening.link(hasherContract, hasherInstance.address)
+    // const lightening = await deployer.deploy(ETHLightening, verifier.address, ETH_AMOUNT, MERKLE_TREE_HEIGHT, accounts[0], treasury.address)
+    // console.log('ETHLightening\'s address ', lightening.address)
   })
 }
