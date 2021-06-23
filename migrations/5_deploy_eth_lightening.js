@@ -5,6 +5,7 @@ const Proxy = artifacts.require('Proxy')
 const Verifier = artifacts.require('Verifier')
 const Treasury = artifacts.require('Treasury')
 const hasherContract = artifacts.require('Hasher')
+const config = require('./config')
 
 module.exports = function (deployer, network, accounts) {
   return deployer.then(async () => {
@@ -28,12 +29,16 @@ module.exports = function (deployer, network, accounts) {
     // await proxy.updateInstance(lightening.address, true)
     // console.log('ETHLightening\'s address ', lightening.address)
 
+    const network_id = deployer.network_id
     const { MERKLE_TREE_HEIGHT, ETH_AMOUNT } = process.env
     console.log('ETH_AMOUNT:', ETH_AMOUNT)
-    const proxy = await Proxy.at("0x78BA2BDE40A4cE7d266cc55866ADd7897f2508e1");
-    const verifier = await Verifier.at("0xA6F72f8968022A3F22E030131ED1A87412d83B1C");
-    const hasherInstance = await hasherContract.at("0x39Aa42587C46B62a5b8bEa3228184A305cc23833")
-    const treasury = await Treasury.deployed("0x006ef5FC1C4A2dB47a68a5264861f1b0525486c0");
+    const proxy = await Proxy.at(config.proxy[network_id])
+    const hasherInstance = await hasherContract.at(config.hasher[network_id])
+    const deployedAddress = await ETHLightening.at(config.anyMixer[network_id])
+
+    const verifier = (await deployedAddress.verifier()).valueOf().toString();
+    const treasury = (await deployedAddress.treasury()).valueOf().toString();
+
     await ETHLightening.link(hasherContract, hasherInstance.address)
     const lightening = await deployer.deploy(ETHLightening, verifier.address, ETH_AMOUNT, MERKLE_TREE_HEIGHT, accounts[0], treasury.address)
     await proxy.updateInstance(lightening.address, true)
